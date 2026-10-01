@@ -613,6 +613,21 @@ button {
   border-color: var(--accent);
 }
 
+.inline-check {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.inline-check input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
+.bridge-card {
+  border-color: #cbded8;
+}
+
 .live-card p {
   margin: 0;
   color: var(--muted);

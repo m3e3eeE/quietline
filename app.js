@@ -3,6 +3,7 @@ import { SimplePool, finalizeEvent, generateSecretKey, getPublicKey } from "http
 const STORAGE_KEY = "quietline.threads.v3";
 const IDENTITY_KEY = "quietline.identity.v1";
 const LIVE_SETTINGS_KEY = "quietline.liveSettings.v1";
+const BRIDGE_SETTINGS_KEY = "quietline.whatsappBridge.v1";
 const LIVE_THREAD_ID = "live-room";
 const RELAYS = [
   "wss://relay.damus.io",
@@ -14,7 +15,7 @@ const LIVE_KIND = 23333;
 const connectors = [
   { id: "all", name: "All", short: "All", state: "Unified", enabled: true },
   { id: "live", name: "Live Room", short: "Live", state: "Working now", enabled: true },
-  { id: "whatsapp", name: "WhatsApp", short: "WA", state: "Ready to connect", enabled: true },
+  { id: "whatsapp", name: "WhatsApp", short: "WA", state: "Local bridge", enabled: true },
   { id: "signal", name: "Signal", short: "SI", state: "Adapter slot", enabled: true },
   { id: "telegram", name: "Telegram", short: "TG", state: "Adapter slot", enabled: true },
   { id: "imessage", name: "iMessage", short: "IM", state: "Mac bridge slot", enabled: false },
@@ -39,6 +40,7 @@ const seedThreads = [
     name: "Mara",
     initials: "M",
     connector: "whatsapp",
+    target: "",
     muted: false,
     pinned: true,
     unread: 2,
@@ -99,6 +101,7 @@ let liveRoomTag = "";
 let liveName = "";
 let liveSecretKey = loadIdentity();
 let livePublicKey = getPublicKey(liveSecretKey);
+let bridgeSettings = loadBridgeSettings();
 const seenEventIds = new Set();
 
 const shell = document.querySelector(".app-shell");
@@ -125,6 +128,14 @@ const liveRoomInput = document.getElementById("liveRoomInput");
 const connectLiveButton = document.getElementById("connectLiveButton");
 const copyInviteButton = document.getElementById("copyInviteButton");
 const liveStatus = document.getElementById("liveStatus");
+const bridgeUrlInput = document.getElementById("bridgeUrlInput");
+const bridgeTokenInput = document.getElementById("bridgeTokenInput");
+const bridgeDryRunInput = document.getElementById("bridgeDryRunInput");
+const saveBridgeButton = document.getElementById("saveBridgeButton");
+const testBridgeButton = document.getElementById("testBridgeButton");
+const bridgeStatus = document.getElementById("bridgeStatus");
+const newContactPhone = document.getElementById("newContactPhone");
+const newContactPhoneLabel = document.getElementById("newContactPhoneLabel");
 
 function loadThreads() {
   try {
@@ -237,7 +248,7 @@ function renderConversation() {
   activeId = thread.id;
   const connector = connectorFor(thread.connector);
   activeName.textContent = thread.name;
-  activeMeta.textContent = thread.muted ? "quiet notifications" : "messages and media only";
+  activeMeta.textContent = conversationMeta(thread);
   activeAvatar.textContent = thread.initials;
   activeConnector.textContent = connector.name;
 
@@ -246,7 +257,7 @@ function renderConversation() {
       <article class="message ${message.from === "me" ? "outgoing" : "incoming"}">
         ${message.author && message.from !== "me" ? `<strong class="message-author">${escapeHtml(message.author)}</strong>` : ""}
         ${renderMessageBody(message)}
-        <time>${escapeHtml(message.time)}</time>
+        <time>${escapeHtml(message.status ? `${message.time} · ${message.status}` : message.time)}</time>
       </article>
     `)
     .join("");
@@ -274,7 +285,7 @@ function setActiveThread(id) {
   shell.classList.add("show-chat");
 }
 
-function sendMessage(text) {
+async function sendMessage(text) {
   const thread = activeThread();
   if (!thread || !text.trim()) return;
   if (thread.connector === "live") {
@@ -282,16 +293,21 @@ function sendMessage(text) {
     messageInput.value = "";
     return;
   }
-  thread.messages.push({
+  const message = {
     from: "me",
     type: "text",
     text: text.trim(),
     time: formatTime()
-  });
+  };
+  thread.messages.push(message);
   saveThreads();
   messageInput.value = "";
   renderThreads();
   renderConversation();
+
+  if (thread.connector === "whatsapp") {
+    await sendWhatsAppMessage(thread, message);
+  }
 }
 
 function sendImage(file) {
@@ -484,15 +500,144 @@ function readJson(value) {
   }
 }
 
-function createThread(name, firstMessage, connectorId) {
+function loadBridgeSettings() {
+  const saved = readJson(localStorage.getItem(BRIDGE_SETTINGS_KEY)) || {};
+  return {
+    url: saved.url || defaultBridgeUrl(),
+    token: saved.token || "",
+    dryRun: saved.dryRun !== false
+  };
+}
+
+function saveBridgeSettings() {
+  bridgeSettings = {
+    url: normalizeBridgeUrl(bridgeUrlInput.value),
+    token: bridgeTokenInput.value.trim(),
+    dryRun: bridgeDryRunInput.checked
+  };
+  localStorage.setItem(BRIDGE_SETTINGS_KEY, JSON.stringify(bridgeSettings));
+  bridgeUrlInput.value = bridgeSettings.url;
+  bridgeTokenInput.value = bridgeSettings.token;
+  bridgeStatus.textContent = bridgeSettings.token
+    ? "WhatsApp bridge settings saved in this browser."
+    : "Add the bridge token before sending WhatsApp messages.";
+}
+
+function initializeBridgeControls() {
+  bridgeUrlInput.value = bridgeSettings.url;
+  bridgeTokenInput.value = bridgeSettings.token;
+  bridgeDryRunInput.checked = bridgeSettings.dryRun;
+  updatePhoneField();
+}
+
+async function testWhatsAppBridge() {
+  saveBridgeSettings();
+  bridgeStatus.textContent = "Testing bridge...";
+  try {
+    const response = await fetch(`${bridgeSettings.url}/health`);
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Bridge did not return healthy.");
+    bridgeStatus.textContent = `Bridge is reachable. Dry-run default is ${result.dryRunDefault ? "on" : "off"}.`;
+  } catch (error) {
+    bridgeStatus.textContent = `Bridge test failed: ${error.message}`;
+  }
+}
+
+async function sendWhatsAppMessage(thread, message) {
+  if (!thread.target) {
+    message.status = "No phone number";
+    addLocalSystemMessage(thread, "Add an E.164 phone number to this WhatsApp thread before sending.");
+    return;
+  }
+  if (!bridgeSettings.token) {
+    message.status = "Bridge not connected";
+    addLocalSystemMessage(thread, "Open Connectors and add the WhatsApp bridge token before sending.");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${bridgeSettings.url}/api/whatsapp/send`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bridgeSettings.token}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        target: thread.target,
+        message: message.text,
+        dryRun: bridgeSettings.dryRun
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "WhatsApp bridge send failed.");
+    message.status = result.dryRun ? "Dry run" : "Sent";
+    bridgeStatus.textContent = result.dryRun ? "WhatsApp dry-run succeeded." : "WhatsApp send handed to OpenClaw.";
+  } catch (error) {
+    message.status = "Failed";
+    addLocalSystemMessage(thread, `WhatsApp bridge failed: ${error.message}`);
+  }
+  saveThreads();
+  renderThreads();
+  renderConversation();
+}
+
+function addLocalSystemMessage(thread, text) {
+  thread.messages.push({
+    from: "them",
+    type: "text",
+    author: "QuietLine",
+    text,
+    time: formatTime()
+  });
+  saveThreads();
+  renderThreads();
+  renderConversation();
+}
+
+function conversationMeta(thread) {
+  if (thread.connector === "whatsapp") {
+    return thread.target ? `WhatsApp ${thread.target}` : "WhatsApp bridge needs a phone number";
+  }
+  return thread.muted ? "quiet notifications" : "messages and media only";
+}
+
+function normalizeBridgeUrl(value) {
+  return String(value || defaultBridgeUrl()).trim().replace(/\/+$/g, "");
+}
+
+function defaultBridgeUrl() {
+  return window.location.hostname && !window.location.hostname.endsWith("github.io")
+    ? window.location.origin
+    : "http://127.0.0.1:8787";
+}
+
+function normalizedPhone(value) {
+  return String(value || "").replace(/\s+/g, "");
+}
+
+function updatePhoneField() {
+  const isWhatsApp = newContactConnector.value === "whatsapp";
+  newContactPhoneLabel.hidden = !isWhatsApp;
+  newContactPhone.required = isWhatsApp;
+}
+
+function createThread(name, firstMessage, connectorId, target = "") {
   const normalized = name.trim();
-  if (!normalized) return;
+  if (!normalized) return false;
+  const phone = normalizedPhone(target);
+  if (connectorId === "whatsapp" && !/^\+[1-9]\d{7,14}$/.test(phone)) {
+    newContactPhone.setCustomValidity("Use an E.164 phone number like +31612345678.");
+    newContactPhone.reportValidity();
+    return false;
+  }
+  newContactPhone.setCustomValidity("");
   const id = `${connectorId}-${normalized.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
   threads.unshift({
     id,
     name: normalized,
     initials: normalized.slice(0, 2).toUpperCase(),
     connector: connectorId,
+    target: connectorId === "whatsapp" ? phone : "",
     muted: false,
     pinned: false,
     unread: 0,
@@ -510,6 +655,7 @@ function createThread(name, firstMessage, connectorId) {
   renderThreads();
   renderConversation();
   shell.classList.add("show-chat");
+  return true;
 }
 
 function formatTime() {
@@ -585,16 +731,22 @@ document.getElementById("attachButton").addEventListener("click", () => {
 
 connectLiveButton.addEventListener("click", connectLiveRoom);
 copyInviteButton.addEventListener("click", copyInvite);
+saveBridgeButton.addEventListener("click", saveBridgeSettings);
+testBridgeButton.addEventListener("click", testWhatsAppBridge);
+newContactConnector.addEventListener("change", updatePhoneField);
 
 newChatForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  createThread(newContactName.value, newContactMessage.value, newContactConnector.value);
+  const created = createThread(newContactName.value, newContactMessage.value, newContactConnector.value, newContactPhone.value);
+  if (!created) return;
   newContactName.value = "";
   newContactMessage.value = "";
+  newContactPhone.value = "";
   dialog.close();
 });
 
 renderConnectors();
 renderThreads();
 renderConversation();
+initializeBridgeControls();
 initializeLiveControls();

@@ -83,6 +83,26 @@
           </div>
           <p id="liveStatus">Free relay mode: messages are shared by room code.</p>
         </div>
+        <div class="live-card bridge-card">
+          <h3>WhatsApp bridge</h3>
+          <label>
+            Bridge URL
+            <input id="bridgeUrlInput" type="url" placeholder="http://127.0.0.1:8787">
+          </label>
+          <label>
+            Bridge token
+            <input id="bridgeTokenInput" type="password" autocomplete="off" placeholder="Stored only in this browser">
+          </label>
+          <label class="inline-check">
+            <input id="bridgeDryRunInput" type="checkbox" checked>
+            Dry run
+          </label>
+          <div class="live-actions">
+            <button class="send-button" id="saveBridgeButton" type="button">Save</button>
+            <button class="copy-button" id="testBridgeButton" type="button">Test</button>
+          </div>
+          <p id="bridgeStatus">Connects this browser to your local OpenClaw WhatsApp bridge.</p>
+        </div>
         <div class="privacy-grid">
           <div>
             <span class="status-dot"></span>
@@ -118,6 +138,10 @@
         <label>
           Chat app
           <select id="newContactConnector"></select>
+        </label>
+        <label id="newContactPhoneLabel" hidden>
+          Phone number
+          <input id="newContactPhone" type="tel" inputmode="tel" maxlength="18" placeholder="+31612345678">
         </label>
         <label>
           First message
