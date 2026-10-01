@@ -1,7 +1,19 @@
-const STORAGE_KEY = "quietline.threads.v2";
+import { SimplePool, finalizeEvent, generateSecretKey, getPublicKey } from "https://esm.sh/nostr-tools@2.7.2";
+
+const STORAGE_KEY = "quietline.threads.v3";
+const IDENTITY_KEY = "quietline.identity.v1";
+const LIVE_SETTINGS_KEY = "quietline.liveSettings.v1";
+const LIVE_THREAD_ID = "live-room";
+const RELAYS = [
+  "wss://relay.damus.io",
+  "wss://nos.lol",
+  "wss://relay.primal.net"
+];
+const LIVE_KIND = 23333;
 
 const connectors = [
   { id: "all", name: "All", short: "All", state: "Unified", enabled: true },
+  { id: "live", name: "Live Room", short: "Live", state: "Working now", enabled: true },
   { id: "whatsapp", name: "WhatsApp", short: "WA", state: "Ready to connect", enabled: true },
   { id: "signal", name: "Signal", short: "SI", state: "Adapter slot", enabled: true },
   { id: "telegram", name: "Telegram", short: "TG", state: "Adapter slot", enabled: true },
@@ -10,6 +22,18 @@ const connectors = [
 ];
 
 const seedThreads = [
+  {
+    id: LIVE_THREAD_ID,
+    name: "Live Room",
+    initials: "L",
+    connector: "live",
+    muted: false,
+    pinned: true,
+    unread: 0,
+    messages: [
+      { from: "them", type: "text", author: "QuietLine", text: "Connect a room code, share the invite link, and messages will sync through free public relays.", time: "Now" }
+    ]
+  },
   {
     id: "mara-wa",
     name: "Mara",
@@ -68,6 +92,14 @@ let threads = loadThreads();
 let activeId = threads[0]?.id;
 let filter = "all";
 let connectorFilter = "all";
+let pool;
+let liveSubscription;
+let liveRoom = "";
+let liveRoomTag = "";
+let liveName = "";
+let liveSecretKey = loadIdentity();
+let livePublicKey = getPublicKey(liveSecretKey);
+const seenEventIds = new Set();
 
 const shell = document.querySelector(".app-shell");
 const threadList = document.getElementById("threadList");
@@ -88,6 +120,11 @@ const newChatForm = document.getElementById("newChatForm");
 const newContactName = document.getElementById("newContactName");
 const newContactMessage = document.getElementById("newContactMessage");
 const newContactConnector = document.getElementById("newContactConnector");
+const liveNameInput = document.getElementById("liveNameInput");
+const liveRoomInput = document.getElementById("liveRoomInput");
+const connectLiveButton = document.getElementById("connectLiveButton");
+const copyInviteButton = document.getElementById("copyInviteButton");
+const liveStatus = document.getElementById("liveStatus");
 
 function loadThreads() {
   try {
@@ -100,6 +137,14 @@ function loadThreads() {
 
 function saveThreads() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
+}
+
+function loadIdentity() {
+  const existing = localStorage.getItem(IDENTITY_KEY);
+  if (existing && /^[0-9a-f]{64}$/i.test(existing)) return hexToBytes(existing);
+  const generated = generateSecretKey();
+  localStorage.setItem(IDENTITY_KEY, bytesToHex(generated));
+  return generated;
 }
 
 function activeThread() {
@@ -199,6 +244,7 @@ function renderConversation() {
   messagePane.innerHTML = thread.messages
     .map((message) => `
       <article class="message ${message.from === "me" ? "outgoing" : "incoming"}">
+        ${message.author && message.from !== "me" ? `<strong class="message-author">${escapeHtml(message.author)}</strong>` : ""}
         ${renderMessageBody(message)}
         <time>${escapeHtml(message.time)}</time>
       </article>
@@ -231,6 +277,11 @@ function setActiveThread(id) {
 function sendMessage(text) {
   const thread = activeThread();
   if (!thread || !text.trim()) return;
+  if (thread.connector === "live") {
+    publishLiveMessage({ type: "text", text: text.trim() });
+    messageInput.value = "";
+    return;
+  }
   thread.messages.push({
     from: "me",
     type: "text",
@@ -248,6 +299,15 @@ function sendImage(file) {
   if (!thread || !file) return;
   const reader = new FileReader();
   reader.onload = () => {
+    if (thread.connector === "live" && String(reader.result).length < 90000) {
+      publishLiveMessage({
+        type: "image",
+        text: file.name,
+        image: String(reader.result)
+      });
+      imageInput.value = "";
+      return;
+    }
     thread.messages.push({
       from: "me",
       type: "image",
@@ -261,6 +321,167 @@ function sendImage(file) {
     renderConversation();
   };
   reader.readAsDataURL(file);
+}
+
+async function connectLiveRoom() {
+  liveName = liveNameInput.value.trim() || "QuietLine user";
+  liveRoom = normalizeRoom(liveRoomInput.value || "family");
+  liveRoomInput.value = liveRoom;
+  liveNameInput.value = liveName;
+  liveRoomTag = await hashRoom(liveRoom);
+  localStorage.setItem(LIVE_SETTINGS_KEY, JSON.stringify({ name: liveName, room: liveRoom }));
+  setLiveThreadName();
+  setActiveThread(LIVE_THREAD_ID);
+  subscribeLiveRoom();
+  updateInviteUrl();
+}
+
+function subscribeLiveRoom() {
+  liveSubscription?.close?.();
+  pool ??= new SimplePool();
+  liveStatus.textContent = `Connecting to ${RELAYS.length} free relays for room "${liveRoom}"...`;
+  liveSubscription = pool.subscribeMany(
+    RELAYS,
+    [{ kinds: [LIVE_KIND], "#r": [liveRoomTag], since: Math.floor(Date.now() / 1000) - 60 * 60 * 24 }],
+    {
+      onevent(event) {
+        addLiveEvent(event);
+      },
+      oneose() {
+        liveStatus.textContent = `Connected to room "${liveRoom}". Share the invite link with friends or family.`;
+      }
+    }
+  );
+}
+
+function addLiveEvent(event) {
+  if (seenEventIds.has(event.id)) return;
+  seenEventIds.add(event.id);
+  let payload;
+  try {
+    payload = JSON.parse(event.content);
+  } catch {
+    payload = { type: "text", text: event.content };
+  }
+  if (!payload || typeof payload.text !== "string") return;
+  const thread = threads.find((item) => item.id === LIVE_THREAD_ID);
+  if (!thread) return;
+  thread.messages.push({
+    id: event.id,
+    from: event.pubkey === livePublicKey ? "me" : "them",
+    author: payload.name || `${event.pubkey.slice(0, 8)}...`,
+    type: payload.type === "image" ? "image" : "text",
+    text: payload.text,
+    image: typeof payload.image === "string" ? payload.image : undefined,
+    time: formatEventTime(event.created_at)
+  });
+  thread.messages = dedupeMessages(thread.messages).slice(-200);
+  if (activeId !== LIVE_THREAD_ID && event.pubkey !== livePublicKey) thread.unread += 1;
+  saveThreads();
+  renderThreads();
+  renderConversation();
+}
+
+async function publishLiveMessage(payload) {
+  if (!liveRoomTag) await connectLiveRoom();
+  const event = finalizeEvent({
+    kind: LIVE_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ["r", liveRoomTag],
+      ["client", "QuietLine"],
+      ["room", liveRoom]
+    ],
+    content: JSON.stringify({
+      ...payload,
+      name: liveName || "QuietLine user"
+    })
+  }, liveSecretKey);
+  addLiveEvent(event);
+  try {
+    const publishes = pool.publish(RELAYS, event);
+    await Promise.any(publishes);
+    liveStatus.textContent = `Sent in room "${liveRoom}".`;
+  } catch {
+    liveStatus.textContent = "Message saved locally, but no free relay accepted it yet. Try again.";
+  }
+}
+
+function setLiveThreadName() {
+  const thread = threads.find((item) => item.id === LIVE_THREAD_ID);
+  if (!thread) return;
+  thread.name = liveRoom ? `Room: ${liveRoom}` : "Live Room";
+  thread.initials = "L";
+  saveThreads();
+}
+
+function updateInviteUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", liveRoom);
+  window.history.replaceState({}, "", url);
+}
+
+async function copyInvite() {
+  if (!liveRoom) await connectLiveRoom();
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", liveRoom);
+  await navigator.clipboard.writeText(url.toString());
+  liveStatus.textContent = "Invite link copied.";
+}
+
+function initializeLiveControls() {
+  const params = new URLSearchParams(window.location.search);
+  const saved = readJson(localStorage.getItem(LIVE_SETTINGS_KEY)) || {};
+  liveNameInput.value = saved.name || "Max";
+  liveRoomInput.value = normalizeRoom(params.get("room") || saved.room || "family");
+  connectLiveRoom();
+}
+
+function normalizeRoom(value) {
+  return String(value || "family")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "family";
+}
+
+async function hashRoom(room) {
+  const input = new TextEncoder().encode(`quietline:${room}`);
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i += 1) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return bytes;
+}
+
+function formatEventTime(timestamp) {
+  return new Date(timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function dedupeMessages(messages) {
+  const seen = new Set();
+  return messages.filter((message) => {
+    if (!message.id) return true;
+    if (seen.has(message.id)) return false;
+    seen.add(message.id);
+    return true;
+  });
+}
+
+function readJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 function createThread(name, firstMessage, connectorId) {
@@ -362,6 +583,9 @@ document.getElementById("attachButton").addEventListener("click", () => {
   imageInput.click();
 });
 
+connectLiveButton.addEventListener("click", connectLiveRoom);
+copyInviteButton.addEventListener("click", copyInvite);
+
 newChatForm.addEventListener("submit", (event) => {
   event.preventDefault();
   createThread(newContactName.value, newContactMessage.value, newContactConnector.value);
@@ -373,3 +597,4 @@ newChatForm.addEventListener("submit", (event) => {
 renderConnectors();
 renderThreads();
 renderConversation();
+initializeLiveControls();

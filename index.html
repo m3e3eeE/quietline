@@ -67,6 +67,22 @@
           <button class="icon-button" id="closePanel" type="button" aria-label="Close privacy panel" title="Close">×</button>
         </div>
         <div class="connector-list" id="connectorList"></div>
+        <div class="live-card">
+          <h3>Live room</h3>
+          <label>
+            Your name
+            <input id="liveNameInput" type="text" maxlength="32" placeholder="Max">
+          </label>
+          <label>
+            Room code
+            <input id="liveRoomInput" type="text" maxlength="48" placeholder="family">
+          </label>
+          <div class="live-actions">
+            <button class="send-button" id="connectLiveButton" type="button">Connect</button>
+            <button class="copy-button" id="copyInviteButton" type="button">Copy invite</button>
+          </div>
+          <p id="liveStatus">Free relay mode: messages are shared by room code.</p>
+        </div>
         <div class="privacy-grid">
           <div>
             <span class="status-dot"></span>
@@ -114,6 +130,6 @@
       </form>
     </dialog>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>
