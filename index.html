@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QuietLine</title>
+    <meta name="description" content="A calm, private-first messaging prototype without feeds, likes, stories, or algorithmic social media.">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell" aria-label="QuietLine messenger">
+      <aside class="sidebar" aria-label="Conversations">
+        <div class="brand-row">
+          <div class="brand-mark" aria-hidden="true">QL</div>
+          <div>
+            <h1>QuietLine</h1>
+            <p>Messages only</p>
+          </div>
+          <button class="icon-button" id="composeButton" type="button" aria-label="New conversation" title="New conversation">+</button>
+        </div>
+
+        <label class="search-box">
+          <span aria-hidden="true">Search</span>
+          <input id="searchInput" type="search" autocomplete="off" placeholder="Name or message">
+        </label>
+
+        <div class="mode-tabs" role="tablist" aria-label="Conversation filter">
+          <button class="tab active" type="button" data-filter="all">All</button>
+          <button class="tab" type="button" data-filter="unread">Unread</button>
+          <button class="tab" type="button" data-filter="quiet">Quiet</button>
+        </div>
+
+        <section class="thread-list" id="threadList" aria-label="Chat list"></section>
+      </aside>
+
+      <section class="conversation" aria-label="Active conversation">
+        <header class="conversation-header">
+          <button class="icon-button back-button" id="backButton" type="button" aria-label="Back to chats" title="Back">‹</button>
+          <div class="avatar large" id="activeAvatar" aria-hidden="true">M</div>
+          <div class="contact-heading">
+            <h2 id="activeName">Mara</h2>
+            <p id="activeMeta">end-to-end encrypted style prototype</p>
+          </div>
+          <button class="icon-button" id="privacyButton" type="button" aria-label="Privacy settings" title="Privacy">i</button>
+        </header>
+
+        <div class="notice-strip" id="noticeStrip">
+          No feed. No public status. No read-receipt pressure.
+        </div>
+
+        <div class="message-pane" id="messagePane" aria-live="polite"></div>
+
+        <form class="composer" id="composer">
+          <button class="icon-button" type="button" id="attachButton" aria-label="Attach file" title="Attach">+</button>
+          <input id="messageInput" type="text" autocomplete="off" placeholder="Write a message">
+          <button class="send-button" type="submit">Send</button>
+        </form>
+      </section>
+
+      <aside class="detail-panel" id="detailPanel" aria-label="Privacy panel">
+        <div class="panel-header">
+          <h2>Privacy</h2>
+          <button class="icon-button" id="closePanel" type="button" aria-label="Close privacy panel" title="Close">×</button>
+        </div>
+        <div class="privacy-grid">
+          <div>
+            <span class="status-dot"></span>
+            <strong>Private by default</strong>
+            <p>Contacts are local to the conversation list. There is no discover tab or public profile.</p>
+          </div>
+          <div>
+            <span class="status-dot"></span>
+            <strong>Quiet receipts</strong>
+            <p>Messages can be delivered without showing public activity, streaks, likes, or presence games.</p>
+          </div>
+          <div>
+            <span class="status-dot"></span>
+            <strong>Local prototype</strong>
+            <p>This demo stores messages in this browser only. A real version would need an encrypted backend.</p>
+          </div>
+        </div>
+        <div class="settings-block">
+          <label><input type="checkbox" checked disabled> No social feed</label>
+          <label><input type="checkbox" checked disabled> No follower counts</label>
+          <label><input type="checkbox" checked disabled> No algorithmic recommendations</label>
+        </div>
+      </aside>
+    </main>
+
+    <dialog id="newChatDialog">
+      <form method="dialog" class="dialog-card" id="newChatForm">
+        <h2>New Conversation</h2>
+        <label>
+          Contact name
+          <input id="newContactName" type="text" maxlength="32" placeholder="Alex" required>
+        </label>
+        <label>
+          First message
+          <input id="newContactMessage" type="text" maxlength="160" placeholder="Hey, this is QuietLine.">
+        </label>
+        <div class="dialog-actions">
+          <button type="button" id="cancelNewChat">Cancel</button>
+          <button class="send-button" value="default" type="submit">Create</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
