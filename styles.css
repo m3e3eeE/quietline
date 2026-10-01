@@ -21,6 +21,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow: hidden;
   background: var(--bg);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -43,7 +44,7 @@ button {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr) minmax(280px, 340px);
   width: min(1440px, 100vw);
-  height: min(920px, 100vh);
+  height: min(920px, 100dvh);
   min-height: 680px;
   margin: 0 auto;
   background: var(--surface);
@@ -327,6 +328,7 @@ button {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-width: 0;
+  min-height: 0;
   background:
     linear-gradient(rgba(255, 255, 255, 0.90), rgba(255, 255, 255, 0.90)),
     radial-gradient(circle at 10% 10%, rgba(15, 118, 110, 0.10), transparent 28%),
@@ -379,7 +381,9 @@ button {
   flex-direction: column;
   gap: 10px;
   overflow: auto;
-  padding: 18px;
+  min-height: 0;
+  padding: 18px 18px 22px;
+  overscroll-behavior: contain;
 }
 
 .message {
@@ -433,6 +437,9 @@ button {
 }
 
 .composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: 10px;
@@ -440,6 +447,7 @@ button {
   padding: 14px 18px;
   border-top: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
 }
 
 .composer input {
@@ -646,7 +654,8 @@ dialog::backdrop {
   .app-shell {
     grid-template-columns: 1fr;
     min-height: 100vh;
-    height: 100vh;
+    min-height: 100dvh;
+    height: 100dvh;
   }
 
   .sidebar,
