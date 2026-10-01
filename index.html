@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>QuietLine</title>
-    <meta name="description" content="A calm, private-first messaging prototype without feeds, likes, stories, or algorithmic social media.">
+    <meta name="description" content="A calm unified messaging prototype for WhatsApp and other chat apps, without feeds, likes, stories, or algorithmic social media.">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -14,7 +14,7 @@
           <div class="brand-mark" aria-hidden="true">QL</div>
           <div>
             <h1>QuietLine</h1>
-            <p>Messages only</p>
+            <p>One quiet inbox</p>
           </div>
           <button class="icon-button" id="composeButton" type="button" aria-label="New conversation" title="New conversation">+</button>
         </div>
@@ -23,6 +23,8 @@
           <span aria-hidden="true">Search</span>
           <input id="searchInput" type="search" autocomplete="off" placeholder="Name or message">
         </label>
+
+        <nav class="connector-rail" id="connectorRail" aria-label="Chat apps"></nav>
 
         <div class="mode-tabs" role="tablist" aria-label="Conversation filter">
           <button class="tab active" type="button" data-filter="all">All</button>
@@ -41,48 +43,51 @@
             <h2 id="activeName">Mara</h2>
             <p id="activeMeta">end-to-end encrypted style prototype</p>
           </div>
+          <span class="active-connector" id="activeConnector">WhatsApp</span>
           <button class="icon-button" id="privacyButton" type="button" aria-label="Privacy settings" title="Privacy">i</button>
         </header>
 
         <div class="notice-strip" id="noticeStrip">
-          No feed. No public status. No read-receipt pressure.
+          Unified chats. Text and pictures. No feed, public status, or follower mechanics.
         </div>
 
         <div class="message-pane" id="messagePane" aria-live="polite"></div>
 
         <form class="composer" id="composer">
           <button class="icon-button" type="button" id="attachButton" aria-label="Attach file" title="Attach">+</button>
+          <input id="imageInput" type="file" accept="image/*" hidden>
           <input id="messageInput" type="text" autocomplete="off" placeholder="Write a message">
           <button class="send-button" type="submit">Send</button>
         </form>
       </section>
 
-      <aside class="detail-panel" id="detailPanel" aria-label="Privacy panel">
+      <aside class="detail-panel" id="detailPanel" aria-label="Connector and privacy panel">
         <div class="panel-header">
-          <h2>Privacy</h2>
+          <h2>Connectors</h2>
           <button class="icon-button" id="closePanel" type="button" aria-label="Close privacy panel" title="Close">×</button>
         </div>
+        <div class="connector-list" id="connectorList"></div>
         <div class="privacy-grid">
           <div>
             <span class="status-dot"></span>
-            <strong>Private by default</strong>
-            <p>Contacts are local to the conversation list. There is no discover tab or public profile.</p>
+            <strong>Adapter-ready shape</strong>
+            <p>Every service maps into the same thread format: source app, contact, messages, media, and delivery state.</p>
           </div>
           <div>
             <span class="status-dot"></span>
-            <strong>Quiet receipts</strong>
-            <p>Messages can be delivered without showing public activity, streaks, likes, or presence games.</p>
+            <strong>Necessary media</strong>
+            <p>Text and pictures are first-class. Social layers like stories, feeds, likes, and discovery stay out.</p>
           </div>
           <div>
             <span class="status-dot"></span>
             <strong>Local prototype</strong>
-            <p>This demo stores messages in this browser only. A real version would need an encrypted backend.</p>
+            <p>This demo stores messages in this browser. Real connectors would live behind secure service bridges.</p>
           </div>
         </div>
         <div class="settings-block">
-          <label><input type="checkbox" checked disabled> No social feed</label>
-          <label><input type="checkbox" checked disabled> No follower counts</label>
-          <label><input type="checkbox" checked disabled> No algorithmic recommendations</label>
+          <label><input type="checkbox" checked disabled> Unified inbox</label>
+          <label><input type="checkbox" checked disabled> Text and pictures</label>
+          <label><input type="checkbox" checked disabled> No feed or follower counts</label>
         </div>
       </aside>
     </main>
@@ -93,6 +98,10 @@
         <label>
           Contact name
           <input id="newContactName" type="text" maxlength="32" placeholder="Alex" required>
+        </label>
+        <label>
+          Chat app
+          <select id="newContactConnector"></select>
         </label>
         <label>
           First message
