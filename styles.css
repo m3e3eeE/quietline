@@ -482,8 +482,11 @@ button {
   gap: 18px;
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  max-height: 100dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 18px;
   border-left: 1px solid var(--line);
 }
