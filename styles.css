@@ -481,6 +481,9 @@ button {
   flex-direction: column;
   gap: 18px;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px;
   border-left: 1px solid var(--line);
 }
@@ -720,7 +723,7 @@ dialog::backdrop {
     right: 0;
     z-index: 4;
     width: min(360px, 92vw);
-    height: 100vh;
+    height: 100dvh;
     transform: translateX(102%);
     transition: transform 160ms ease;
     box-shadow: var(--shadow);
