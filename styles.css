@@ -66,10 +66,32 @@ button {
 
 .brand-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 40px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 18px;
+}
+
+.brand-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.account-button {
+  min-height: 32px;
+  max-width: 102px;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 1px solid #b7d6d2;
+  border-radius: 8px;
+  background: #edf7f6;
+  color: #0d5f58;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-row h1,
@@ -597,6 +619,11 @@ button {
   font-size: 15px;
 }
 
+.native-card {
+  border-color: #b7d6d2;
+  background: linear-gradient(145deg, #f7fffc, #edf7f6);
+}
+
 .live-card label {
   display: grid;
   gap: 6px;
@@ -681,6 +708,19 @@ dialog::backdrop {
   gap: 14px;
   width: min(420px, calc(100vw - 32px));
   padding: 18px;
+}
+
+.dialog-copy,
+.form-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.form-status:not(:empty) {
+  min-height: 20px;
+  color: #27584d;
 }
 
 .dialog-card label {

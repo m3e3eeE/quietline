@@ -1,4 +1,15 @@
 import { SimplePool, finalizeEvent, generateSecretKey, getPublicKey } from "https://esm.sh/nostr-tools@2.7.2";
+import {
+  backendIsConfigured,
+  currentUser,
+  listConversations,
+  onAuthChange,
+  requestMagicLink,
+  sendNativeMessage,
+  signOut,
+  startDirectConversation,
+  subscribeToNativeMessages
+} from "./relay-backend.js";
 
 const STORAGE_KEY = "quietline.threads.v3";
 const IDENTITY_KEY = "quietline.identity.v1";
@@ -14,6 +25,7 @@ const LIVE_KIND = 23333;
 
 const connectors = [
   { id: "all", name: "All", short: "All", state: "Unified", enabled: true },
+  { id: "relay", name: "Relay", short: "R", state: "Native messages", enabled: true },
   { id: "live", name: "Live Room", short: "Live", state: "Working now", enabled: true },
   { id: "whatsapp", name: "WhatsApp", short: "WA", state: "Local bridge", enabled: true },
   { id: "signal", name: "Signal", short: "SI", state: "Adapter slot", enabled: true },
@@ -102,6 +114,8 @@ let liveName = "";
 let liveSecretKey = loadIdentity();
 let livePublicKey = getPublicKey(liveSecretKey);
 let bridgeSettings = loadBridgeSettings();
+let relayUser = null;
+let stopNativeSubscription = () => {};
 const seenEventIds = new Set();
 
 const shell = document.querySelector(".app-shell");
@@ -136,6 +150,16 @@ const testBridgeButton = document.getElementById("testBridgeButton");
 const bridgeStatus = document.getElementById("bridgeStatus");
 const newContactPhone = document.getElementById("newContactPhone");
 const newContactPhoneLabel = document.getElementById("newContactPhoneLabel");
+const accountButton = document.getElementById("accountButton");
+const accountPanelButton = document.getElementById("accountPanelButton");
+const accountStatus = document.getElementById("accountStatus");
+const accountDialog = document.getElementById("accountDialog");
+const accountForm = document.getElementById("accountForm");
+const accountEmail = document.getElementById("accountEmail");
+const accountName = document.getElementById("accountName");
+const accountFormStatus = document.getElementById("accountFormStatus");
+const accountDialogCopy = document.getElementById("accountDialogCopy");
+const accountSubmit = document.getElementById("accountSubmit");
 
 function loadThreads() {
   try {
@@ -291,6 +315,20 @@ async function sendMessage(text) {
   if (thread.connector === "live") {
     publishLiveMessage({ type: "text", text: text.trim() });
     messageInput.value = "";
+    return;
+  }
+  if (thread.connector === "relay") {
+    if (!relayUser) {
+      openAccountDialog();
+      return;
+    }
+    try {
+      await sendNativeMessage(thread.id.replace(/^relay-/, ""), text.trim());
+      messageInput.value = "";
+      await refreshNativeThreads();
+    } catch (error) {
+      addLocalSystemMessage(thread, `Relay could not send: ${error.message}`);
+    }
     return;
   }
   const message = {
@@ -595,6 +633,9 @@ function addLocalSystemMessage(thread, text) {
 }
 
 function conversationMeta(thread) {
+  if (thread.connector === "relay") {
+    return relayUser ? "private Relay message" : "sign in to use Relay messages";
+  }
   if (thread.connector === "whatsapp") {
     return thread.target ? `WhatsApp ${thread.target}` : "WhatsApp bridge needs a phone number";
   }
@@ -621,9 +662,25 @@ function updatePhoneField() {
   newContactPhone.required = isWhatsApp;
 }
 
-function createThread(name, firstMessage, connectorId, target = "") {
+async function createThread(name, firstMessage, connectorId, target = "") {
   const normalized = name.trim();
   if (!normalized) return false;
+  if (connectorId === "relay") {
+    if (!relayUser) {
+      openAccountDialog();
+      return false;
+    }
+    try {
+      const conversationId = await startDirectConversation(normalized, firstMessage);
+      await refreshNativeThreads();
+      setActiveThread(`relay-${conversationId}`);
+      return true;
+    } catch (error) {
+      newContactName.setCustomValidity(error.message);
+      newContactName.reportValidity();
+      return false;
+    }
+  }
   const phone = normalizedPhone(target);
   if (connectorId === "whatsapp" && !/^\+[1-9]\d{7,14}$/.test(phone)) {
     newContactPhone.setCustomValidity("Use an E.164 phone number like +31612345678.");
@@ -645,7 +702,7 @@ function createThread(name, firstMessage, connectorId, target = "") {
       {
         from: "them",
         type: "text",
-        text: firstMessage.trim() || "Started a quiet conversation.",
+        text: firstMessage.trim() || "Started a conversation.",
         time: "Now"
       }
     ]
@@ -656,6 +713,92 @@ function createThread(name, firstMessage, connectorId, target = "") {
   renderConversation();
   shell.classList.add("show-chat");
   return true;
+}
+
+function openAccountDialog() {
+  accountFormStatus.textContent = backendIsConfigured()
+    ? ""
+    : "Relay accounts need a Supabase project before sign-in can be enabled.";
+  accountDialogCopy.textContent = relayUser
+    ? "You are signed in to Relay. You can sign out from this device below."
+    : "Use your email to create a private Relay account. We’ll send a sign-in link—no password required.";
+  accountSubmit.textContent = relayUser ? "Sign out" : "Send sign-in link";
+  accountEmail.closest("label").hidden = Boolean(relayUser);
+  accountName.closest("label").hidden = Boolean(relayUser);
+  accountDialog.showModal();
+  if (!relayUser) accountEmail.focus();
+}
+
+function renderAccount() {
+  if (!backendIsConfigured()) {
+    accountButton.textContent = "Accounts soon";
+    accountPanelButton.textContent = "Accounts soon";
+    accountStatus.textContent = "Native Relay accounts are ready to connect once the secure backend is configured.";
+    return;
+  }
+  if (relayUser) {
+    const label = relayUser.email || "Account";
+    accountButton.textContent = "Signed in";
+    accountPanelButton.textContent = "Account";
+    accountStatus.textContent = `Signed in as ${label}. Native Relay messages are private to conversation members.`;
+    return;
+  }
+  accountButton.textContent = "Create account";
+  accountPanelButton.textContent = "Create account";
+  accountStatus.textContent = "Create an account to message other Relay people directly.";
+}
+
+async function refreshNativeThreads() {
+  if (!relayUser || !backendIsConfigured()) return;
+  try {
+    const conversations = await listConversations();
+    const nativeThreads = conversations.map((conversation) => {
+      const members = Array.isArray(conversation.members) ? conversation.members : [];
+      const other = members.map((member) => member.profile).find((profile) => profile?.id !== relayUser.id) || members[0]?.profile;
+      const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+      return {
+        id: `relay-${conversation.id}`,
+        name: conversation.title || other?.display_name || other?.handle || "Relay conversation",
+        initials: (conversation.title || other?.display_name || other?.handle || "R").slice(0, 2).toUpperCase(),
+        connector: "relay",
+        muted: false,
+        pinned: true,
+        unread: 0,
+        messages: messages.reverse().map((message) => ({
+          from: message.sender?.display_name === relayUser.user_metadata?.display_name ? "me" : "them",
+          author: message.sender?.display_name,
+          type: "text",
+          text: message.body,
+          time: formatEventTime(new Date(message.created_at).getTime() / 1000)
+        }))
+      };
+    });
+    threads = threads.filter((thread) => thread.connector !== "relay").concat(nativeThreads);
+    saveThreads();
+    renderThreads();
+    renderConversation();
+  } catch (error) {
+    accountStatus.textContent = `Relay account connected, but conversations could not load: ${error.message}`;
+  }
+}
+
+async function initializeAccounts() {
+  renderAccount();
+  if (!backendIsConfigured()) return;
+  try {
+    relayUser = await currentUser();
+    renderAccount();
+    await refreshNativeThreads();
+  } catch (error) {
+    accountStatus.textContent = `Account setup needs attention: ${error.message}`;
+  }
+  onAuthChange(async (user) => {
+    relayUser = user;
+    stopNativeSubscription();
+    stopNativeSubscription = user ? subscribeToNativeMessages(refreshNativeThreads) : () => {};
+    renderAccount();
+    await refreshNativeThreads();
+  });
 }
 
 function formatTime() {
@@ -721,6 +864,30 @@ document.getElementById("composeButton").addEventListener("click", () => {
   newContactName.focus();
 });
 
+accountButton.addEventListener("click", openAccountDialog);
+accountPanelButton.addEventListener("click", openAccountDialog);
+document.getElementById("cancelAccount").addEventListener("click", () => accountDialog.close());
+
+accountForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (relayUser) {
+    await signOut();
+    accountDialog.close();
+    return;
+  }
+  if (!backendIsConfigured()) return;
+  accountSubmit.disabled = true;
+  accountFormStatus.textContent = "Sending sign-in link…";
+  try {
+    await requestMagicLink(accountEmail.value.trim(), accountName.value.trim());
+    accountFormStatus.textContent = "Check your email for the Relay sign-in link.";
+  } catch (error) {
+    accountFormStatus.textContent = error.message;
+  } finally {
+    accountSubmit.disabled = false;
+  }
+});
+
 document.getElementById("cancelNewChat").addEventListener("click", () => {
   dialog.close();
 });
@@ -735,9 +902,9 @@ saveBridgeButton.addEventListener("click", saveBridgeSettings);
 testBridgeButton.addEventListener("click", testWhatsAppBridge);
 newContactConnector.addEventListener("change", updatePhoneField);
 
-newChatForm.addEventListener("submit", (event) => {
+newChatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const created = createThread(newContactName.value, newContactMessage.value, newContactConnector.value, newContactPhone.value);
+  const created = await createThread(newContactName.value, newContactMessage.value, newContactConnector.value, newContactPhone.value);
   if (!created) return;
   newContactName.value = "";
   newContactMessage.value = "";
@@ -750,3 +917,4 @@ renderThreads();
 renderConversation();
 initializeBridgeControls();
 initializeLiveControls();
+initializeAccounts();

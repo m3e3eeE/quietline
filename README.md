@@ -4,6 +4,16 @@ A static GitHub Pages prototype for a unified messaging system: direct and group
 
 This prototype stores normal demo messages in browser `localStorage` so the interface can be tried immediately on GitHub Pages. The Live Room uses public Nostr relays for free room messaging. WhatsApp support is handled by a local Mac bridge that calls OpenClaw, so no private tokens are stored in the GitHub Pages site.
 
+## Native Relay Accounts
+
+Relay now includes the app-side foundation for its own passwordless accounts and private direct messages. It is intentionally inactive until a Supabase project is configured.
+
+1. Create a Supabase project and run [`supabase/schema.sql`](supabase/schema.sql) in its SQL Editor.
+2. In Supabase Auth, enable Email magic links and set the production site URL plus redirect URL to the Relay Pages address.
+3. Put the project's **public** URL and **anon** key in `relay-config.js`. Never put a service-role key in the website or repository.
+
+Once configured, people can create Relay accounts from the app, start a direct conversation with another person's Relay handle, and exchange native messages. Existing third-party connectors remain separate adapters.
+
 ## Run Locally
 
 Open `index.html` directly in a browser, or serve the folder:
