@@ -95,7 +95,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Skiz bridge listening on http://${HOST}:${PORT}`);
+  console.log(`QuietLine bridge listening on http://${HOST}:${PORT}`);
   console.log(`Dry-run default: ${DRY_RUN_DEFAULT ? "on" : "off"}`);
 });
 
