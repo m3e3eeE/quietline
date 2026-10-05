@@ -32,7 +32,7 @@ const seedThreads = [
     pinned: true,
     unread: 0,
     messages: [
-      { from: "them", type: "text", author: "QuietLine", text: "Connect a room code, share the invite link, and messages will sync through free public relays.", time: "Now" }
+      { from: "them", type: "text", author: "Relay", text: "Connect a room code, share the invite link, and messages will sync through free public relays.", time: "Now" }
     ]
   },
   {
@@ -340,7 +340,7 @@ function sendImage(file) {
 }
 
 async function connectLiveRoom() {
-  liveName = liveNameInput.value.trim() || "QuietLine user";
+  liveName = liveNameInput.value.trim() || "Relay user";
   liveRoom = normalizeRoom(liveRoomInput.value || "family");
   liveRoomInput.value = liveRoom;
   liveNameInput.value = liveName;
@@ -405,12 +405,12 @@ async function publishLiveMessage(payload) {
     created_at: Math.floor(Date.now() / 1000),
     tags: [
       ["r", liveRoomTag],
-      ["client", "QuietLine"],
+      ["client", "Relay"],
       ["room", liveRoom]
     ],
     content: JSON.stringify({
       ...payload,
-      name: liveName || "QuietLine user"
+      name: liveName || "Relay user"
     })
   }, liveSecretKey);
   addLiveEvent(event);
@@ -585,7 +585,7 @@ function addLocalSystemMessage(thread, text) {
   thread.messages.push({
     from: "them",
     type: "text",
-    author: "QuietLine",
+    author: "Relay",
     text,
     time: formatTime()
   });

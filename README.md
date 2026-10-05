@@ -1,4 +1,4 @@
-# QuietLine
+# Relay
 
 A static GitHub Pages prototype for a unified messaging system: direct and group chats from multiple services in one place.
 
@@ -14,7 +14,7 @@ python3 -m http.server 8080
 
 ## WhatsApp Bridge
 
-QuietLine can send WhatsApp messages through a local OpenClaw bridge on the Mac that already has WhatsApp linked.
+Relay can send WhatsApp messages through a local OpenClaw bridge on the Mac that already has WhatsApp linked.
 
 ```sh
 export QUIETLINE_BRIDGE_TOKEN="replace-with-a-private-long-random-value"
@@ -22,7 +22,7 @@ export QUIETLINE_BRIDGE_DRY_RUN_DEFAULT=1
 node bridge/quietline-bridge.mjs
 ```
 
-In QuietLine, open Connectors, enter the bridge URL and token, then create a WhatsApp chat with an E.164 phone number like `+31612345678`.
+In Relay, open Connectors, enter the bridge URL and token, then create a WhatsApp chat with an E.164 phone number like `+31612345678`.
 
 Keep dry-run on until the first real send is approved.
 
