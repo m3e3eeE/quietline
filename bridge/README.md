@@ -1,6 +1,6 @@
-# QuietLine WhatsApp Bridge
+# Skiz WhatsApp Bridge
 
-This is the local Mac bridge that lets the QuietLine website ask OpenClaw to send WhatsApp messages.
+This is the local Mac bridge that lets the Skiz website ask OpenClaw to send WhatsApp messages.
 
 It does not store WhatsApp credentials. It calls the existing local `openclaw message send --channel whatsapp` command, protected by a private bridge token.
 
@@ -17,7 +17,7 @@ Defaults:
 - URL: `http://127.0.0.1:8787`
 - Dry run: on
 - Allowed web origins: `https://m3e3eee.github.io`, `http://localhost:8080`, and `http://127.0.0.1:8080`
-- Static app: the bridge also serves QuietLine at its own URL, so phone testing can use one local address.
+- Static app: the bridge also serves Skiz at its own URL, so phone testing can use one local address.
 
 For same-Wi-Fi phone testing:
 
@@ -28,7 +28,7 @@ node bridge/quietline-bridge.mjs
 
 Then open `http://<mac-lan-ip>:8787` on the phone.
 
-For a real send test, start the bridge with dry-run disabled or turn off dry-run in the QuietLine UI:
+For a real send test, start the bridge with dry-run disabled or turn off dry-run in the Skiz UI:
 
 ```sh
 export QUIETLINE_BRIDGE_DRY_RUN_DEFAULT=0
@@ -41,5 +41,5 @@ curl http://127.0.0.1:8787/health
 curl -X POST http://127.0.0.1:8787/api/whatsapp/send \
   -H "authorization: Bearer $QUIETLINE_BRIDGE_TOKEN" \
   -H "content-type: application/json" \
-  -d '{"target":"+31612345678","message":"QuietLine dry run","dryRun":true}'
+  -d '{"target":"+31612345678","message":"Skiz dry run","dryRun":true}'
 ```
