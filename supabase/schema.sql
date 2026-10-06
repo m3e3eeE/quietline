@@ -58,6 +58,13 @@ alter table public.conversations enable row level security;
 alter table public.conversation_members enable row level security;
 alter table public.messages enable row level security;
 
+-- With automatic table exposure disabled, grant only the minimal API rights that
+-- Relay needs. Row Level Security below still restricts every individual row.
+grant usage on schema public to authenticated;
+grant select on public.profiles, public.conversations, public.conversation_members, public.messages to authenticated;
+grant insert on public.messages to authenticated;
+grant update on public.profiles to authenticated;
+
 create policy "profiles are visible to signed-in Relay users" on public.profiles for select to authenticated using (true);
 create policy "users update their own profile" on public.profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 create policy "members read their conversations" on public.conversations for select to authenticated using (exists (select 1 from public.conversation_members cm where cm.conversation_id = id and cm.profile_id = auth.uid()));
@@ -87,5 +94,6 @@ begin
 end;
 $$;
 
+revoke execute on function public.start_direct_conversation(text, text) from public;
 grant execute on function public.start_direct_conversation(text, text) to authenticated;
 alter publication supabase_realtime add table public.messages;
