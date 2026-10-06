@@ -765,7 +765,7 @@ async function refreshNativeThreads() {
         pinned: true,
         unread: 0,
         messages: messages.reverse().map((message) => ({
-          from: message.sender?.display_name === relayUser.user_metadata?.display_name ? "me" : "them",
+          from: message.sender_id === relayUser.id ? "me" : "them",
           author: message.sender?.display_name,
           type: "text",
           text: message.body,

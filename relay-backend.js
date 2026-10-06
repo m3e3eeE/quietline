@@ -47,7 +47,7 @@ export async function listConversations() {
   if (!client) return [];
   const { data, error } = await client
     .from("conversation_members")
-    .select("conversation:conversations(id, kind, title, created_at, members:conversation_members(profile:profiles(id, display_name, handle)), messages(id, body, created_at, sender:profiles(display_name)) )")
+    .select("conversation:conversations(id, kind, title, created_at, members:conversation_members(profile:profiles(id, display_name, handle)), messages(id, body, sender_id, created_at, sender:profiles(display_name)) )")
     .order("created_at", { foreignTable: "conversation.created_at", ascending: false });
   if (error) throw error;
   return (data || []).map((row) => row.conversation).filter(Boolean);
