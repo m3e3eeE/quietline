@@ -4,6 +4,10 @@ A static GitHub Pages prototype for a unified messaging system: direct and group
 
 This prototype stores normal demo messages in browser `localStorage` so the interface can be tried immediately on GitHub Pages. The Live Room uses public Nostr relays for free room messaging. WhatsApp support is handled by a local Mac bridge that calls OpenClaw, so no private tokens are stored in the GitHub Pages site.
 
+## Preview status
+
+Relay is a preview, not a claim that every connector is live. Native account code supports direct conversations and includes the database migration for group creation. The WhatsApp Companion can safely dry-run outgoing messages and now has a protected event-sync interface, but the verified receiver needed for two-way personal WhatsApp sync is still to be implemented and tested with an opted-in account.
+
 ## Native Relay Accounts
 
 Relay now includes the app-side foundation for its own passwordless accounts and private direct messages. It is intentionally inactive until a Supabase project is configured.

@@ -8,6 +8,7 @@ import {
   sendNativeMessage,
   signOut,
   startDirectConversation,
+  startGroupConversation,
   subscribeToNativeMessages
 } from "./relay-backend.js";
 
@@ -116,6 +117,8 @@ let livePublicKey = getPublicKey(liveSecretKey);
 let bridgeSettings = loadBridgeSettings();
 let relayUser = null;
 let stopNativeSubscription = () => {};
+let bridgeEventCursor = Number(localStorage.getItem("quietline.whatsappBridgeCursor.v1") || 0);
+let bridgeSyncTimer;
 const seenEventIds = new Set();
 
 const shell = document.querySelector(".app-shell");
@@ -150,6 +153,11 @@ const testBridgeButton = document.getElementById("testBridgeButton");
 const bridgeStatus = document.getElementById("bridgeStatus");
 const newContactPhone = document.getElementById("newContactPhone");
 const newContactPhoneLabel = document.getElementById("newContactPhoneLabel");
+const newGroupMembers = document.getElementById("newGroupMembers");
+const newGroupMembersLabel = document.getElementById("newGroupMembersLabel");
+const newContactNameLabel = document.getElementById("newContactNameLabel");
+const whatsappHelpButton = document.getElementById("whatsappHelpButton");
+const whatsappHelpDialog = document.getElementById("whatsappHelpDialog");
 const accountButton = document.getElementById("accountButton");
 const accountPanelButton = document.getElementById("accountPanelButton");
 const accountStatus = document.getElementById("accountStatus");
@@ -566,6 +574,9 @@ function initializeBridgeControls() {
   bridgeTokenInput.value = bridgeSettings.token;
   bridgeDryRunInput.checked = bridgeSettings.dryRun;
   updatePhoneField();
+  clearInterval(bridgeSyncTimer);
+  bridgeSyncTimer = window.setInterval(syncWhatsAppMessages, 5000);
+  syncWhatsAppMessages();
 }
 
 async function testWhatsAppBridge() {
@@ -593,6 +604,14 @@ async function sendWhatsAppMessage(thread, message) {
     return;
   }
 
+  if (!bridgeSettings.dryRun && !window.confirm(`Send this message to ${thread.target} through your WhatsApp account?`)) {
+    message.status = "Not sent";
+    saveThreads();
+    renderThreads();
+    renderConversation();
+    return;
+  }
+
   try {
     const response = await fetch(`${bridgeSettings.url}/api/whatsapp/send`, {
       method: "POST",
@@ -617,6 +636,41 @@ async function sendWhatsAppMessage(thread, message) {
   saveThreads();
   renderThreads();
   renderConversation();
+}
+
+async function syncWhatsAppMessages() {
+  if (!bridgeSettings.token) return;
+  try {
+    const response = await fetch(`${bridgeSettings.url}/api/whatsapp/events?after=${bridgeEventCursor}`, {
+      headers: { authorization: `Bearer ${bridgeSettings.token}` }
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "WhatsApp sync failed.");
+    let changed = false;
+    for (const event of result.events || []) {
+      bridgeEventCursor = Math.max(bridgeEventCursor, Number(event.id) || 0);
+      const thread = threads.find((item) => item.connector === "whatsapp" && item.target === event.from);
+      if (!thread || thread.messages.some((message) => message.id === `wa-bridge-${event.id}`)) continue;
+      thread.messages.push({
+        id: `wa-bridge-${event.id}`,
+        from: "them",
+        type: "text",
+        text: event.message,
+        time: event.timestamp ? formatEventTime(new Date(event.timestamp).getTime() / 1000) : formatTime()
+      });
+      if (activeId !== thread.id) thread.unread += 1;
+      changed = true;
+    }
+    localStorage.setItem("quietline.whatsappBridgeCursor.v1", String(bridgeEventCursor));
+    if (changed) {
+      saveThreads();
+      renderThreads();
+      renderConversation();
+      bridgeStatus.textContent = "WhatsApp messages synced from your Companion.";
+    }
+  } catch (error) {
+    bridgeStatus.textContent = `WhatsApp sync paused: ${error.message}`;
+  }
 }
 
 function addLocalSystemMessage(thread, text) {
@@ -658,8 +712,11 @@ function normalizedPhone(value) {
 
 function updatePhoneField() {
   const isWhatsApp = newContactConnector.value === "whatsapp";
+  const isRelay = newContactConnector.value === "relay";
   newContactPhoneLabel.hidden = !isWhatsApp;
   newContactPhone.required = isWhatsApp;
+  newGroupMembersLabel.hidden = !isRelay;
+  newContactNameLabel.firstChild.textContent = isRelay ? "Relay handle or group name" : "Contact name";
 }
 
 async function createThread(name, firstMessage, connectorId, target = "") {
@@ -671,7 +728,10 @@ async function createThread(name, firstMessage, connectorId, target = "") {
       return false;
     }
     try {
-      const conversationId = await startDirectConversation(normalized, firstMessage);
+      const members = newGroupMembers.value.split(",").map((member) => member.trim()).filter(Boolean);
+      const conversationId = members.length
+        ? await startGroupConversation(normalized, members, firstMessage)
+        : await startDirectConversation(normalized, firstMessage);
       await refreshNativeThreads();
       setActiveThread(`relay-${conversationId}`);
       return true;
@@ -901,6 +961,8 @@ copyInviteButton.addEventListener("click", copyInvite);
 saveBridgeButton.addEventListener("click", saveBridgeSettings);
 testBridgeButton.addEventListener("click", testWhatsAppBridge);
 newContactConnector.addEventListener("change", updatePhoneField);
+whatsappHelpButton.addEventListener("click", () => whatsappHelpDialog.showModal());
+document.getElementById("closeWhatsAppHelp").addEventListener("click", () => whatsappHelpDialog.close());
 
 newChatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -909,6 +971,7 @@ newChatForm.addEventListener("submit", async (event) => {
   newContactName.value = "";
   newContactMessage.value = "";
   newContactPhone.value = "";
+  newGroupMembers.value = "";
   dialog.close();
 });
 

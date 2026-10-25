@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Relay</title>
     <meta name="description" content="A unified messaging prototype that brings WhatsApp and other chat apps into one inbox.">
-    <link rel="stylesheet" href="styles.css?v=20261001-scroll2">
+    <link rel="stylesheet" href="styles.css?v=20261025-relay-preview">
   </head>
   <body>
     <main class="app-shell" aria-label="Relay messenger">
@@ -14,7 +14,7 @@
           <div class="brand-mark" aria-hidden="true">R</div>
           <div>
             <h1>Relay</h1>
-            <p>All your chats, one place</p>
+          <p>Your chats, clearly connected</p>
           </div>
           <div class="brand-actions">
             <button class="account-button" id="accountButton" type="button">Create account</button>
@@ -51,7 +51,7 @@
         </header>
 
         <div class="notice-strip" id="noticeStrip">
-          One inbox for every conversation. Text and pictures, across the apps you already use.
+          Relay chats work on their own. Connected services always show their source and connection status.
         </div>
 
         <div class="message-pane" id="messagePane" aria-live="polite"></div>
@@ -92,7 +92,9 @@
           <p id="liveStatus">Free relay mode: messages are shared by room code.</p>
         </div>
         <div class="live-card bridge-card">
-          <h3>WhatsApp bridge</h3>
+          <h3>WhatsApp Companion</h3>
+          <p class="connector-copy">Optional. Your Companion runs on a device you control; contacts can stay in WhatsApp.</p>
+          <button class="copy-button setup-button" id="whatsappHelpButton" type="button">How it works</button>
           <label>
             Bridge URL
             <input id="bridgeUrlInput" type="url" placeholder="http://127.0.0.1:8787">
@@ -109,7 +111,7 @@
             <button class="send-button" id="saveBridgeButton" type="button">Save</button>
             <button class="copy-button" id="testBridgeButton" type="button">Test</button>
           </div>
-          <p id="bridgeStatus">Connects this browser to your local OpenClaw WhatsApp bridge.</p>
+          <p id="bridgeStatus">Advanced setup: connect this browser to your own local Companion. Real sending requires a confirmation.</p>
         </div>
         <div class="privacy-grid">
           <div>
@@ -124,8 +126,8 @@
           </div>
           <div>
             <span class="status-dot"></span>
-            <strong>Local prototype</strong>
-            <p>This demo stores messages in this browser. Real connectors would live behind secure service bridges.</p>
+            <strong>Explicit connections</strong>
+            <p>Relay never claims a service is connected when it is not. You can pause or disconnect an adapter at any time.</p>
           </div>
         </div>
         <div class="settings-block">
@@ -139,9 +141,13 @@
     <dialog id="newChatDialog">
       <form method="dialog" class="dialog-card" id="newChatForm">
         <h2>New Conversation</h2>
-        <label>
+        <label id="newContactNameLabel">
           Contact name
           <input id="newContactName" type="text" maxlength="32" placeholder="Alex" required>
+        </label>
+        <label id="newGroupMembersLabel" hidden>
+          Other Relay handles, separated by commas
+          <input id="newGroupMembers" type="text" maxlength="800" placeholder="alex, sam, taylor">
         </label>
         <label>
           Chat app
@@ -160,6 +166,23 @@
           <button class="send-button" value="default" type="submit">Create</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="whatsappHelpDialog">
+      <section class="dialog-card companion-guide" aria-labelledby="whatsappHelpTitle">
+        <h2 id="whatsappHelpTitle">WhatsApp in Relay</h2>
+        <ol>
+          <li>Relay works without WhatsApp. Create an account and use native Relay chats normally.</li>
+          <li>To bring in your own WhatsApp conversations, install the Relay Companion on a Mac or PC you control.</li>
+          <li>Approve the connection once. Relay then labels those chats as WhatsApp.</li>
+          <li>Your contact stays on WhatsApp. Messages sent from Relay go through your own WhatsApp account.</li>
+          <li>If the Companion is offline, WhatsApp still works normally and Relay catches up after it reconnects.</li>
+        </ol>
+        <p class="form-status">Personal WhatsApp syncing is an opt-in Companion feature. It is not an official universal personal-chat API.</p>
+        <div class="dialog-actions">
+          <button class="send-button" id="closeWhatsAppHelp" type="button">Got it</button>
+        </div>
+      </section>
     </dialog>
 
     <dialog id="accountDialog">
@@ -183,6 +206,6 @@
     </dialog>
 
     <script src="relay-config.js"></script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=20261025-relay-preview"></script>
   </body>
 </html>

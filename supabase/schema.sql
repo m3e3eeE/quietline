@@ -96,4 +96,46 @@ $$;
 
 revoke execute on function public.start_direct_conversation(text, text) from public;
 grant execute on function public.start_direct_conversation(text, text) to authenticated;
+
+create or replace function public.start_group_conversation(
+  group_title text,
+  member_handles text[],
+  first_message text default ''
+)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  created_id uuid;
+  requested_member_count integer;
+  found_member_count integer;
+begin
+  if char_length(trim(group_title)) < 1 or char_length(trim(group_title)) > 80 then
+    raise exception 'Choose a group name between 1 and 80 characters.';
+  end if;
+  if coalesce(array_length(member_handles, 1), 0) < 1 or array_length(member_handles, 1) > 49 then
+    raise exception 'Choose between 1 and 49 other Relay members.';
+  end if;
+  select count(distinct lower(trim(handle))) into requested_member_count
+  from unnest(member_handles) as handle where trim(handle) <> '';
+  if requested_member_count < 1 then raise exception 'Add at least one other Relay member.'; end if;
+  select count(*) into found_member_count from public.profiles
+  where lower(handle) = any(array(select distinct lower(trim(handle)) from unnest(member_handles) as handle where trim(handle) <> ''))
+    and id <> auth.uid();
+  if found_member_count <> requested_member_count then
+    raise exception 'One or more Relay handles could not be found.';
+  end if;
+  insert into public.conversations(kind, title) values ('group', trim(group_title)) returning id into created_id;
+  insert into public.conversation_members(conversation_id, profile_id) values (created_id, auth.uid());
+  insert into public.conversation_members(conversation_id, profile_id)
+  select created_id, id from public.profiles
+  where lower(handle) = any(array(select distinct lower(trim(handle)) from unnest(member_handles) as handle where trim(handle) <> ''))
+    and id <> auth.uid();
+  if nullif(trim(first_message), '') is not null then
+    insert into public.messages(conversation_id, body) values (created_id, trim(first_message));
+  end if;
+  return created_id;
+end;
+$$;
+
+revoke execute on function public.start_group_conversation(text, text[], text) from public;
+grant execute on function public.start_group_conversation(text, text[], text) to authenticated;
 alter publication supabase_realtime add table public.messages;

@@ -4,6 +4,13 @@ This is the local Mac bridge that lets the Relay website ask OpenClaw to send Wh
 
 It does not store WhatsApp credentials. It calls the existing local `openclaw message send --channel whatsapp` command, protected by a private bridge token.
 
+## What the Companion can and cannot do today
+
+- Outgoing sends are implemented and default to dry-run mode.
+- Relay can poll this Companion for inbound events at `/api/whatsapp/events`.
+- A verified, user-approved WhatsApp receiver can submit a received text event to `/api/whatsapp/inbound`; Relay will then show it in the matching WhatsApp thread.
+- This repository does **not** include a receiver for personal WhatsApp chats. Do not claim two-way personal WhatsApp sync is live until that receiver has been implemented and tested with an opted-in account.
+
 ## Run
 
 ```sh

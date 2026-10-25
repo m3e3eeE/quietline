@@ -109,11 +109,29 @@ button {
 
 .brand-row p,
 .contact-heading p,
-.privacy-grid p {
+.privacy-grid p,
+.connector-copy {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.35;
+}
+
+.connector-copy {
+  margin: 6px 0 10px;
+}
+
+.setup-button {
+  margin-bottom: 12px;
+}
+
+.companion-guide ol {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+  padding-left: 22px;
+  color: var(--ink);
+  line-height: 1.45;
 }
 
 .brand-mark,

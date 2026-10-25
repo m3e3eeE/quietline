@@ -9,7 +9,10 @@ const HOST = process.env.QUIETLINE_BRIDGE_HOST || "127.0.0.1";
 const PORT = Number(process.env.QUIETLINE_BRIDGE_PORT || 8787);
 const TOKEN = process.env.QUIETLINE_BRIDGE_TOKEN;
 const DRY_RUN_DEFAULT = process.env.QUIETLINE_BRIDGE_DRY_RUN_DEFAULT !== "0";
+const MAX_SYNC_EVENTS = 200;
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const inboundEvents = [];
+let nextInboundEventId = 1;
 const STATIC_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],
   [".css", "text/css; charset=utf-8"],
@@ -49,6 +52,36 @@ const server = http.createServer(async (request, response) => {
       service: "quietline-whatsapp-bridge",
       dryRunDefault: DRY_RUN_DEFAULT
     }, origin);
+  }
+
+  if (url.pathname === "/api/whatsapp/events" && request.method === "GET") {
+    if (!isAuthorized(request)) {
+      return sendJson(response, 401, { ok: false, error: "Bridge token is missing or invalid." }, origin);
+    }
+    const after = Math.max(0, Number(url.searchParams.get("after") || 0));
+    return sendJson(response, 200, {
+      ok: true,
+      events: inboundEvents.filter((event) => event.id > after)
+    }, origin);
+  }
+
+  if (url.pathname === "/api/whatsapp/inbound" && request.method === "POST") {
+    if (!isAuthorized(request)) {
+      return sendJson(response, 401, { ok: false, error: "Bridge token is missing or invalid." }, origin);
+    }
+    const body = await readJsonBody(request);
+    const from = String(body.from || "").trim();
+    const message = String(body.message || "").trim();
+    if (!/^\+[1-9]\d{7,14}$/.test(from)) {
+      return sendJson(response, 400, { ok: false, error: "Use an E.164 sender number." }, origin);
+    }
+    if (!message || message.length > 4000) {
+      return sendJson(response, 400, { ok: false, error: "Message must be 1-4000 characters." }, origin);
+    }
+    const event = { id: nextInboundEventId++, from, message, timestamp: new Date().toISOString() };
+    inboundEvents.push(event);
+    if (inboundEvents.length > MAX_SYNC_EVENTS) inboundEvents.splice(0, inboundEvents.length - MAX_SYNC_EVENTS);
+    return sendJson(response, 201, { ok: true, event }, origin);
   }
 
   if (url.pathname === "/api/whatsapp/send" && request.method === "POST") {

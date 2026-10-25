@@ -69,6 +69,20 @@ export async function startDirectConversation(handle, firstMessage) {
   return data;
 }
 
+export async function startGroupConversation(title, memberHandles, firstMessage) {
+  if (!client) throw new Error("Relay accounts are not configured yet.");
+  const members = memberHandles
+    .map((handle) => handle.replace(/^@/, "").trim().toLowerCase())
+    .filter(Boolean);
+  const { data, error } = await client.rpc("start_group_conversation", {
+    group_title: title.trim(),
+    member_handles: members,
+    first_message: firstMessage.trim()
+  });
+  if (error) throw error;
+  return data;
+}
+
 export function subscribeToNativeMessages(onChange) {
   if (!client) return () => {};
   const channel = client
