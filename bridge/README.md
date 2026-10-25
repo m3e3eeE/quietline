@@ -9,6 +9,7 @@ It does not store WhatsApp credentials. It calls the existing local `openclaw me
 - Outgoing sends are implemented and default to dry-run mode.
 - Relay can poll this Companion for inbound events at `/api/whatsapp/events`.
 - A verified, user-approved WhatsApp receiver can submit a received text event to `/api/whatsapp/inbound`; Relay will then show it in the matching WhatsApp thread.
+- If an inbound number has no existing Relay WhatsApp thread, Relay creates a clearly labelled thread for that number instead of dropping the message.
 - This repository does **not** include a receiver for personal WhatsApp chats. Do not claim two-way personal WhatsApp sync is live until that receiver has been implemented and tested with an opted-in account.
 
 ## Run

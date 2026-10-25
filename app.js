@@ -649,8 +649,22 @@ async function syncWhatsAppMessages() {
     let changed = false;
     for (const event of result.events || []) {
       bridgeEventCursor = Math.max(bridgeEventCursor, Number(event.id) || 0);
-      const thread = threads.find((item) => item.connector === "whatsapp" && item.target === event.from);
-      if (!thread || thread.messages.some((message) => message.id === `wa-bridge-${event.id}`)) continue;
+      let thread = threads.find((item) => item.connector === "whatsapp" && item.target === event.from);
+      if (!thread) {
+        thread = {
+          id: `whatsapp-${event.from.replace(/[^0-9]/g, "")}-${Date.now().toString(36)}`,
+          name: `WhatsApp ${event.from}`,
+          initials: "WA",
+          connector: "whatsapp",
+          target: event.from,
+          muted: false,
+          pinned: false,
+          unread: 0,
+          messages: []
+        };
+        threads.unshift(thread);
+      }
+      if (thread.messages.some((message) => message.id === `wa-bridge-${event.id}`)) continue;
       thread.messages.push({
         id: `wa-bridge-${event.id}`,
         from: "them",
@@ -666,7 +680,7 @@ async function syncWhatsAppMessages() {
       saveThreads();
       renderThreads();
       renderConversation();
-      bridgeStatus.textContent = "WhatsApp messages synced from your Companion.";
+      bridgeStatus.textContent = "WhatsApp messages synced from your Companion. New numbers are added as labelled chats.";
     }
   } catch (error) {
     bridgeStatus.textContent = `WhatsApp sync paused: ${error.message}`;
